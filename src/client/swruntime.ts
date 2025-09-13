@@ -3,9 +3,75 @@ import { ScramjetClient } from "@client/index";
 
 export class ScramjetServiceWorkerRuntime {
 	recvport: MessagePort;
+	#handleMessage(data: MessageW2R) {
+		const client = this.client;
+		const port = this.recvport;
+		const type = data.scramjet$type;
+		const token = data.scramjet$token;
+		const handlers = client.eventcallbacks.get(self);
+
+		if (type === "fetch") {
+			dbg.log("ee", data);
+			const fetchhandlers = handlers.filter((event) => event.event === "fetch");
+			if (!fetchhandlers) return;
+
+			for (const handler of fetchhandlers) {
+				const request = data.scramjet$request;
+
+				const Request = client.natives["Request"];
+				const fakeRequest = new Request(unrewriteUrl(request.url), {
+					body: request.body,
+					headers: new Headers(request.headers),
+					method: request.method,
+					mode: "same-origin",
+				});
+
+				Object.defineProperty(fakeRequest, "destination", {
+					value: request.destinitation,
+				});
+
+				// TODO: clean up, maybe put into a class
+				const fakeFetchEvent: any = new Event("fetch");
+				fakeFetchEvent.request = fakeRequest;
+				let responded = false;
+				fakeFetchEvent.respondWith = (
+					response: Response | Promise<Response>
+				) => {
+					responded = true;
+					(async () => {
+						response = await response;
+						const message: MessageR2W = {
+							scramjet$type: "fetch",
+							scramjet$token: token,
+							scramjet$response: {
+								body: response.body,
+								headers: Array.from(response.headers.entries()),
+								status: response.status,
+								statusText: response.statusText,
+							},
+						};
+
+						dbg.log("sw", "responding", message);
+						port.postMessage(message, [response.body]);
+					})();
+				};
+
+				dbg.log("to fn", fakeFetchEvent);
+				handler.proxiedCallback(trustEvent(fakeFetchEvent));
+				if (!responded) {
+					console.log("sw", "no response");
+					port.postMessage({
+						scramjet$type: "fetch",
+						scramjet$token: token,
+						scramjet$response: false,
+					});
+				}
+			}
+		}
+	}
 	constructor(public client: ScramjetClient) {
-		// @ts-ignore
-		self.onconnect = (cevent: MessageEvent) => {
+		const handler = (cevent: MessageEvent) => {
+			self.removeEventListener("connect", handler);
 			const port = cevent.ports[0];
 			dbg.log("sw", "connected");
 
@@ -16,13 +82,14 @@ export class ScramjetServiceWorkerRuntime {
 						this.recvport = event.data.scramjet$port;
 						this.recvport.postMessage({ scramjet$type: "init" });
 					} else {
-						handleMessage.call(this, client, event.data);
+						this.#handleMessage(event.data);
 					}
 				}
 			});
 
 			port.start();
 		};
+		self.addEventListener("connect", handler);
 	}
 
 	hook() {
@@ -53,74 +120,6 @@ export class ScramjetServiceWorkerRuntime {
 
 		// @ts-ignore
 		this.client.global.ServiceWorkerGlobalScope = this.client.global;
-	}
-}
-
-function handleMessage(
-	this: ScramjetServiceWorkerRuntime,
-	client: ScramjetClient,
-	data: MessageW2R
-) {
-	const port = this.recvport;
-	const type = data.scramjet$type;
-	const token = data.scramjet$token;
-	const handlers = client.eventcallbacks.get(self);
-
-	if (type === "fetch") {
-		dbg.log("ee", data);
-		const fetchhandlers = handlers.filter((event) => event.event === "fetch");
-		if (!fetchhandlers) return;
-
-		for (const handler of fetchhandlers) {
-			const request = data.scramjet$request;
-
-			const Request = client.natives["Request"];
-			const fakeRequest = new Request(unrewriteUrl(request.url), {
-				body: request.body,
-				headers: new Headers(request.headers),
-				method: request.method,
-				mode: "same-origin",
-			});
-
-			Object.defineProperty(fakeRequest, "destination", {
-				value: request.destinitation,
-			});
-
-			// TODO: clean up, maybe put into a class
-			const fakeFetchEvent: any = new Event("fetch");
-			fakeFetchEvent.request = fakeRequest;
-			let responded = false;
-			fakeFetchEvent.respondWith = (response: Response | Promise<Response>) => {
-				responded = true;
-				(async () => {
-					response = await response;
-					const message: MessageR2W = {
-						scramjet$type: "fetch",
-						scramjet$token: token,
-						scramjet$response: {
-							body: response.body,
-							headers: Array.from(response.headers.entries()),
-							status: response.status,
-							statusText: response.statusText,
-						},
-					};
-
-					dbg.log("sw", "responding", message);
-					port.postMessage(message, [response.body]);
-				})();
-			};
-
-			dbg.log("to fn", fakeFetchEvent);
-			handler.proxiedCallback(trustEvent(fakeFetchEvent));
-			if (!responded) {
-				console.log("sw", "no response");
-				port.postMessage({
-					scramjet$type: "fetch",
-					scramjet$token: token,
-					scramjet$response: false,
-				});
-			}
-		}
 	}
 }
 

@@ -192,7 +192,12 @@ export default function (client: ScramjetClient, self: Self) {
 						return ctx.get();
 					},
 					set(ctx, value: any) {
-						this[realOnEvent] = value;
+						Object.defineProperty(this, realOnEvent, {
+							value,
+							writable: true,
+							enumerable: false,
+							configurable: false,
+						});
 
 						if (typeof value !== "function") return ctx.set(value);
 
