@@ -739,15 +739,9 @@ where
 			self.jschanges
 				.add(rewrite!(Span::new(it.span.start, it.span.start), SourceTag));
 		}
-		if let Some(stmt) = it.statements.get(0) {
-			self.jschanges.add(rewrite!(
-				Span::new(stmt.span().start, stmt.span().start),
-				DeclTempLoc
-			));
-		}
-
 		walk::walk_function_body(self, it);
 	}
+
 
 	fn visit_unary_expression(&mut self, it: &UnaryExpression<'data>) {
 		if matches!(it.operator, UnaryOperator::Typeof) {
