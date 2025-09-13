@@ -109,7 +109,7 @@ export async function handleFetch(
 		const extraParams: Record<string, string> = {};
 		for (const [param, value] of [...requestUrl.searchParams.entries()]) {
 			switch (param) {
-				case "type":
+				case `${config.hrefPrefix}type`:
 					scriptType = value;
 					break;
 				case `${config.hrefPrefix}dest`:

@@ -48,6 +48,7 @@ fn get_config(scramjet: &Object) -> Result<Config> {
 
 	Ok(Config {
 		prefix: get_str(config, "prefix")?,
+		href_prefix: get_str(config, "hrefPrefix")?,
 
 		wrappropertybase: get_str(globals, "wrappropertybase")?,
 		wrappropertyfn: get_str(globals, "wrappropertyfn")?,
@@ -87,7 +88,9 @@ impl UrlRewriter for WasmUrlRewriter {
 			.ok_or_else(|| RewriterError::not_str("url rewriter output"))?;
 
 		if module {
-			rewritten.push_str("?type=module");
+			rewritten.push_str("?");
+			rewritten.push_str(&_cfg.href_prefix);
+			rewritten.push_str("type=module");
 		}
 
 		builder.push_str(&rewritten);

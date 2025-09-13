@@ -21,7 +21,9 @@ export default function (client: ScramjetClient, self: Self) {
 				url.startsWith("..")
 			) {
 				// this is a url
-				return boundimport(`${rewriteUrl(resolved, client.meta)}?type=module`);
+				return boundimport(
+					`${rewriteUrl(resolved, client.meta)}?${config.hrefPrefix}type=module`
+				);
 			} else {
 				// this is a specifier handled by importmaps
 				return boundimport(url);

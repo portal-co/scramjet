@@ -15,6 +15,7 @@ pub trait UrlRewriter {
 
 pub struct Config {
 	pub prefix: String,
+	pub href_prefix: String,
 
 	pub wrapfn: String,
 	pub wrappropertybase: String,

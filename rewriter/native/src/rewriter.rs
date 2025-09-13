@@ -50,6 +50,7 @@ impl NativeRewriter {
 	pub fn new(cfg: &RewriterOptions) -> Self {
 		let rewriter = Rewriter::new(
 			Config {
+				href_prefix: cfg.href_prefix.clone(),
 				prefix: cfg.prefix.clone(),
 				wrapfn: cfg.wrapfn.clone(),
 				wrappropertybase: cfg.wrappropertybase.clone(),

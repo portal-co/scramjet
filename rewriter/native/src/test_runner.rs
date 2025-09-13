@@ -107,6 +107,7 @@ function check(val) {
 
 		let opts = crate::RewriterOptions {
 			prefix: String::from("/scrammedjet/"),
+			href_prefix: String::default(),
 			wrapfn: String::from("$wrap"),
 			wrappropertybase: String::from("$sj_"),
 			wrappropertyfn: String::from("$prop"),

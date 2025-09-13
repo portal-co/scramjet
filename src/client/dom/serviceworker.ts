@@ -80,7 +80,7 @@ export default function (client: ScramjetClient, _self: Self) {
 				config.hrefPrefix +
 				"=serviceworker";
 			if (ctx.args[1] && ctx.args[1].type === "module") {
-				url += "&type=module";
+				url += "&" + config.hrefPrefix + "type=module";
 			}
 
 			const worker = client.natives.construct("SharedWorker", url);
