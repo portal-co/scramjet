@@ -112,7 +112,9 @@ export async function handleFetch(
 				case "type":
 					scriptType = value;
 					break;
-				case "dest":
+				case `${config.hrefPrefix}dest`:
+					break;
+				case `${config.hrefPrefix}from`:
 					break;
 				case "topFrame":
 					topFrameName = value;

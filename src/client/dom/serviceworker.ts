@@ -2,6 +2,7 @@ import { ScramjetClient } from "@client/index";
 import { type MessageC2W } from "@/worker";
 import { flagEnabled } from "@/shared";
 import { rewriteUrl } from "@rewriters/url";
+import { config } from "@/shared/index";
 
 // we need a late order because we're mangling with addEventListener at a higher level
 export const order = 2;
@@ -73,7 +74,11 @@ export default function (client: ScramjetClient, _self: Self) {
 				self.ServiceWorkerRegistration.prototype
 			);
 			fakeRegistration.constructor = ctx.fn;
-			let url = rewriteUrl(ctx.args[0], client.meta) + "?dest=serviceworker";
+			let url =
+				rewriteUrl(ctx.args[0], client.meta) +
+				"?" +
+				config.hrefPrefix +
+				"=serviceworker";
 			if (ctx.args[1] && ctx.args[1].type === "module") {
 				url += "&type=module";
 			}

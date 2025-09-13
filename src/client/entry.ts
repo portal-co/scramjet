@@ -1,6 +1,6 @@
 // entrypoint for scramjet.client.js
 
-import { loadCodecs, setConfig } from "@/shared/index";
+import { loadCodecs, setConfig, config } from "@/shared/index";
 import { SCRAMJETCLIENT } from "@/symbols";
 import { ScramjetClient } from "@client/index";
 import { ScramjetContextEvent, UrlChangeEvent } from "@client/events";
@@ -12,10 +12,11 @@ export const isworker = "WorkerGlobalScope" in globalThis;
 export const issw = "ServiceWorkerGlobalScope" in globalThis;
 export const isdedicated = "DedicatedWorkerGlobalScope" in globalThis;
 export const isshared = "SharedWorkerGlobalScope" in globalThis;
-export const isemulatedsw =
+export const isemulatedsw = () =>
 	"location" in globalThis &&
-	new URL(globalThis.location.href).searchParams.get("dest") ===
-		"serviceworker";
+	new URL(globalThis.location.href).searchParams.get(
+		`${config.hrefPrefix}dest`
+	) === "serviceworker";
 
 function createFrameId() {
 	return `${Array(8)
@@ -43,7 +44,7 @@ export function loadAndHook(config: ScramjetConfig) {
 
 		client.hook();
 
-		if (isemulatedsw) {
+		if (isemulatedsw()) {
 			const runtime = new ScramjetServiceWorkerRuntime(client);
 			runtime.hook();
 		}
