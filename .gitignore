@@ -11,9 +11,20 @@ rewriter/target
 rewriter/wasm/out
 static/wasm.js
 rewriter/*.js
-pnpm-lock.yaml
 playwright-report
 test-results
 *.tgz
 package-lock.json
 rebuild.sh
+
+# Typedoc
+_docs/
+_docs-dev/
+existing-typedoc/
+existing-typedoc-dev/
+staticbuild/
+typedoc-*.tar.gz
+typedoc-*.tar.gz-dev
+
+# Rslib (For global type generation)
+.rslib/

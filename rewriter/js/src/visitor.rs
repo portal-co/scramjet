@@ -69,7 +69,7 @@ where
 		}
 	}
 
-	fn walk_computed_member_expression(&mut self, it: &ComputedMemberExpression<'data>) {
+	fn handle_computed_member_expression(&mut self, it: &ComputedMemberExpression<'data>) {
 		match &it.expression {
 			Expression::NullLiteral(_)
 			| Expression::BigIntLiteral(_)
@@ -277,6 +277,9 @@ where
 											tempvar
 										}
 									));
+
+									// don't recurse into the value because the value is the same and it would double rewrite the prop
+									continue;
 								} else {
 									// const { location: a } = self;
 									if no_shadow && id.name == "location" {
@@ -307,7 +310,7 @@ where
 							self.jschanges.add(rewrite!(prop.key.span(), WrapProperty));
 						}
 					}
-					// self.recurse_binding_pattern(&prop.value, restids, no_shadow, location_assigned);
+					self.recurse_binding_pattern(&prop.value, restids, no_shadow, location_assigned);
 				}
 
 				if let Some(r) = &p.rest {
@@ -357,7 +360,46 @@ where
 		if let ForStatementLeft::VariableDeclaration(v) = &left {
 			self.handle_var_declarator(&v, &mut restids, &mut location_assigned);
 		} else {
-			walk::walk_for_statement_left(self, &left);
+		    let target = left.as_assignment_target().unwrap();
+		    match target {
+				AssignmentTarget::AssignmentTargetIdentifier(s) => {
+					if &s.name == "location" {
+						self.jschanges.add(rewrite!(s.span, TempVar));
+						location_assigned = true;
+					}
+				}
+
+				// TODO: this logic is duplicated in visit_assignment_target. can it be merged?
+				AssignmentTarget::StaticMemberExpression(s) => {
+					// window.location = ...
+					if UNSAFE_GLOBALS.contains(&s.property.name.as_str()) {
+						self.jschanges.add(rewrite!(
+							s.property.span(),
+							RewriteProperty {
+								ident: s.property.name
+							}
+						));
+					}
+
+					// walk the left hand side of the member expression (`window` for the `window.location = ...` case)
+					walk::walk_expression(self, &s.object);
+				}
+				AssignmentTarget::ComputedMemberExpression(s) => {
+					// window["location"] = ...
+					self.handle_computed_member_expression(s);
+					// `window`
+					walk::walk_expression(self, &s.object);
+					// `"location"`
+					walk::walk_expression(self, &s.expression);
+				}
+				AssignmentTarget::ObjectAssignmentTarget(o) => {
+					self.recurse_object_assignment_target(o, &mut restids, &mut location_assigned);
+				}
+				AssignmentTarget::ArrayAssignmentTarget(a) => {
+					self.recurse_array_assignment_target(a, &mut restids, &mut location_assigned);
+				}
+				_ => {}
+			}
 		}
 
 		if location_assigned || restids.len() > 0 {
@@ -439,7 +481,7 @@ where
 				}
 			}
 			MemberExpression::ComputedMemberExpression(s) => {
-				self.walk_computed_member_expression(s);
+				self.handle_computed_member_expression(s);
 			}
 			_ => {}
 		}
@@ -546,7 +588,13 @@ where
 					}
 				));
 			}
+			walk::walk_block_statement(self, &h.body);
 		}
+
+		if let Some(f) = &it.finalizer {
+    		walk::walk_block_statement(self, f);
+		}
+		walk::walk_block_statement(self, &it.block);
 	}
 
 	fn visit_object_expression(&mut self, it: &ObjectExpression<'data>) {
@@ -587,9 +635,10 @@ where
 			);
 		}
 
-		if restids.len() > 0 || location_assigned {
-			if let Some(b) = &it.body {
-				walk::walk_function_body(self, b);
+		if let Some(b) = &it.body {
+		    // calling the actual visit method is neccesary here, walking isn't enough for some reason
+			self.visit_function_body(b);
+	    	if restids.len() > 0 || location_assigned {
 				if let Some(stmt) = b.statements.get(0) {
 					let span = stmt.span();
 					self.jschanges.add(rewrite!(
@@ -626,7 +675,7 @@ where
 			);
 		}
 
-		walk::walk_function_body(self, &it.body);
+		self.visit_function_body(&it.body);
 		if let Some(stmt) = &it.body.statements.get(0) {
 			self.jschanges.add(rewrite!(
 				stmt.span(),
@@ -685,6 +734,7 @@ where
 
 	fn visit_function_body(&mut self, it: &FunctionBody<'data>) {
 		// tag function for use in sourcemaps
+
 		if self.flags.do_sourcemaps {
 			self.jschanges
 				.add(rewrite!(Span::new(it.span.start, it.span.start), SourceTag));
@@ -797,7 +847,7 @@ where
 			}
 			AssignmentTarget::ComputedMemberExpression(s) => {
 				// window["location"] = ...
-				self.walk_computed_member_expression(s);
+				self.handle_computed_member_expression(s);
 				// `window`
 				walk::walk_expression(self, &s.object);
 				// `"location"`

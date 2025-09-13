@@ -15,7 +15,7 @@ import {
 } from "@/shared/security/forceReferrer";
 
 import { unrewriteBlob, unrewriteUrl, type URLMeta } from "@rewriters/url";
-import { rewriteJsWithMap } from "@rewriters/js";
+import { rewriteJs } from "@rewriters/js";
 import { ScramjetHeaders } from "@/shared/headers";
 import { config, flagEnabled } from "@/shared";
 import { rewriteHeaders } from "@rewriters/headers";
@@ -227,7 +227,8 @@ export async function handleFetch(
 			request.destination === "iframe" &&
 			request.mode === "navigate" &&
 			request.referrer &&
-			request.referrer !== "no-referrer"
+			request.referrer !== "no-referrer" &&
+			request.referrer !== location.origin + config.prefix + "no-referrer"
 		) {
 			// Trace back through the referrer chain, checking if each was an iframe navigation using the clients, until we find a non-iframe parent on a non-proxy page
 			let currentReferrer = request.referrer;
@@ -285,7 +286,8 @@ export async function handleFetch(
 		if (
 			request.referrer &&
 			request.referrer !== "" &&
-			request.referrer !== "no-referrer"
+			request.referrer !== "no-referrer" &&
+			request.referrer !== location.origin + config.prefix + "no-referrer"
 		) {
 			if (request.referrer.includes(config.prefix)) {
 				const unrewrittenReferrer = unrewriteUrl(request.referrer);
@@ -390,6 +392,18 @@ async function handleResponse(
 	referrer: string
 ): Promise<Response> {
 	let responseBody: BodyType;
+	// response.rawHeaders = {};
+	// for (let h of response.raw_headers) {
+	// 	const key = h[0];
+	// 	const value = h[1];
+	// 	if (response.rawHeaders[key] === undefined) {
+	// 		response.rawHeaders[key] = value;
+	// 	} else if (Array.isArray(response.rawHeaders[key])) {
+	// 		(response.rawHeaders[key] as string[]).push(value);
+	// 	} else {
+	// 		response.rawHeaders[key] = [response.rawHeaders[key] as string, value];
+	// 	}
+	// }
 	const isNavigationRequest =
 		mode === "navigate" && ["document", "iframe"].includes(destination);
 	const responseHeaders = await rewriteHeaders(
@@ -478,9 +492,7 @@ async function handleResponse(
 
 			// there's no reliable way of finding the top level client that made the request
 			// just take the first one and hope
-			let clis = await clients.matchAll({
-				type: "window",
-			});
+			let clis = await clients.matchAll({});
 			// only want controller windows
 			clis = clis.filter((e) => !e.url.includes(config.prefix));
 			if (clis.length < 1) {
@@ -613,26 +625,12 @@ async function rewriteBody(
 				return response.body;
 			}
 		case "script": {
-			let { js, tag, map } = rewriteJsWithMap(
+			return rewriteJs(
 				new Uint8Array(await response.arrayBuffer()),
 				response.finalURL,
 				meta,
 				workertype === "module"
-			);
-			if (flagEnabled("sourcemaps", meta.base) && map) {
-				if (js instanceof Uint8Array) {
-					js = new TextDecoder().decode(js);
-				}
-				const sourcemapfn = `${config.globals.pushsourcemapfn}([${map.join(",")}], "${tag}");`;
-				const strictMode = /^\s*(['"])use strict\1;?/;
-				if (strictMode.test(js)) {
-					js = js.replace(strictMode, `$&\n${sourcemapfn}`);
-				} else {
-					js = `${sourcemapfn}\n${js}`;
-				}
-			}
-
-			return js as unknown as ArrayBuffer;
+			) as unknown as ArrayBuffer;
 		}
 		case "style":
 			return rewriteCss(await response.text(), meta);

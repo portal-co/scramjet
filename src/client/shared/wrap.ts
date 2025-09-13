@@ -8,7 +8,7 @@ import { indirectEval } from "@client/shared/eval";
 export function createWrapFn(client: ScramjetClient, self: typeof globalThis) {
 	return function (identifier: any, strict: boolean) {
 		if (identifier === self.location) return client.locationProxy;
-		if (identifier === eval) return indirectEval.bind(client, strict);
+		if (identifier === self.eval) return indirectEval.bind(client, strict);
 
 		if (iswindow) {
 			if (identifier === self.parent) {
@@ -145,11 +145,9 @@ export default function (client: ScramjetClient, self: typeof globalThis) {
 	);
 
 	self.$scramitize = function (v) {
-		if (v === self) debugger;
 		if (v === location) debugger;
 		if (iswindow) {
-			if (v === self.parent) debugger;
-			if (v === self.document) debugger;
+			// if (v === self.parent) debugger;
 			if (v === self.top) debugger;
 		}
 
@@ -165,12 +163,15 @@ export default function (client: ScramjetClient, self: typeof globalThis) {
 	// we have to use an IIFE to avoid duplicating side-effects in the getter
 	Object.defineProperty(self, config.globals.trysetfn, {
 		value: function (lhs: any, op: string, rhs: any) {
-			if (lhs instanceof Location) {
+			// TODO: not cross frame safe
+			if (lhs instanceof self.Location) {
 				// @ts-ignore
-				locationProxy.href = rhs;
+				client.locationProxy.href = rhs;
 
 				return true;
 			}
+
+			return false;
 		},
 		writable: false,
 		configurable: false,
